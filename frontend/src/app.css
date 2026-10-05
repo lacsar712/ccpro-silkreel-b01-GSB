@@ -58,6 +58,32 @@ button, input {
   margin: 4px 6px 4px 0;
 }
 .err { color: #b42318; }
+.ok { color: #3f7a4e; }
 .hint { color: #6b5a48; font-size: 0.92em; }
 label { display: block; margin: 8px 0; }
-.topbar { display: flex; justify-content: space-between; align-items: baseline; }
+label.row { display: flex; align-items: center; gap: 8px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.nav { display: flex; gap: 14px; }
+.nav a {
+  color: var(--ink);
+  text-decoration: none;
+  padding: 6px 14px;
+  border: 1px solid #cdbb8e;
+  border-radius: 999px;
+  background: #fffaf0;
+}
+.nav a.active { background: var(--gold); color: #fff; border-color: var(--gold); }
+.heading h1 { margin-bottom: 4px; }
+.valve-card { max-width: 560px; }
+.valve-ok { color: #3f7a4e; }
+.valve-off { color: #6b5a48; }
+.valve-full { color: #b42318; font-weight: 600; }
+.badge-full {
+  margin-left: 8px;
+  background: #b42318;
+  color: #fff;
+  border-radius: 6px;
+  padding: 1px 8px;
+  font-size: 0.85em;
+}
+.btn-blocked { border-color: #b42318; color: #b42318; }

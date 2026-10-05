@@ -4,11 +4,15 @@ from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.models import Basin, BathReading, Filature, User, utcnow
+from app.repositories import ValveRepo
 from app.security import hash_password
 
 
 async def seed_demo() -> None:
     async with SessionLocal() as session:
+        # 总阀单行无论是否全新建坞都得在，先补上。
+        await ValveRepo(session).ensure()
+
         existing = await session.execute(select(User).where(User.username == "admin"))
         admin = existing.scalar_one_or_none()
         if admin is None:

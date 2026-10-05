@@ -57,3 +57,13 @@ class BathReading(Base):
     water_temp_c: Mapped[float] = mapped_column(Float)
     operator: Mapped[str] = mapped_column(String(64), default="")
     basin: Mapped[Basin] = relationship(back_populates="readings")
+
+
+class ValveSetting(Base):
+    """蒸汽总阀：全坞单行设置，启用时限制同时处于缫丝中的口数。"""
+
+    __tablename__ = "valve_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    enabled: Mapped[bool] = mapped_column(default=False)
+    max_reeling: Mapped[int] = mapped_column(Integer, default=4)
