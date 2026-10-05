@@ -3,7 +3,7 @@ from quart.helpers import make_response
 
 from app.db import SessionLocal
 from app.models import Basin
-from app.repositories import BasinRepo, UserRepo
+from app.repositories import BasinRepo, UserRepo, ValveRepo
 from app.security import make_token, parse_token, verify_password
 from app.services import RuleError, assert_can_set_status, latest_temp
 
@@ -33,6 +33,15 @@ async def load_user():
 def require_user():
     if g.user is None:
         return jsonify({"detail": "未登录"}), 401
+    return None
+
+
+def require_admin():
+    denied = require_user()
+    if denied:
+        return denied
+    if g.user.role != "admin":
+        return jsonify({"detail": "仅管理员可操作蒸汽总阀"}), 403
     return None
 
 
@@ -124,10 +133,79 @@ async def set_status(basin_id: int):
         basin = await repo.get(basin_id)
         if basin is None:
             return jsonify({"detail": "盆不存在"}), 404
+        # 状态合法性、以及标已缫完的汤温门槛在此判定（与总阀无关）。
         try:
             assert_can_set_status(basin, status)
         except RuleError as exc:
             return jsonify({"detail": str(exc)}), 400
-        await repo.save_status(basin, status)
+
+        if status == Basin.STATUS_REELING:
+            valves = ValveRepo(session)
+            # 关键：锁总阀行 → 重读该盆落库状态 → 计数 → 落库，须在同一事务内，
+            # 两名工并发改两口浸茧时会在总阀行锁上串行，后到者看到真实口数。
+            valve = await valves.lock_for_update()
+            current = await repo.current_status(basin_id)
+            entering = current != Basin.STATUS_REELING
+            if valve.enabled and entering:
+                used = await valves.count_reeling()
+                if used >= valve.max_reeling:
+                    max_reeling = valve.max_reeling
+                    await session.rollback()
+                    return (
+                        jsonify(
+                            {
+                                "detail": (
+                                    f"蒸汽总阀口数已满（已 {used}/{max_reeling} 口缫丝中），"
+                                    "不能再改成缫丝中"
+                                )
+                            }
+                        ),
+                        400,
+                    )
+        basin.status = status
+        await session.commit()
         basin = await repo.get(basin_id)
         return _basin_json(basin)
+
+
+def _valve_json(valve, used: int) -> dict:
+    return {
+        "enabled": valve.enabled,
+        "maxReeling": valve.max_reeling,
+        "usedReeling": used,
+        "full": used >= valve.max_reeling,
+    }
+
+
+@app.route("/api/steam-valve")
+async def steam_valve():
+    denied = require_user()
+    if denied:
+        return denied
+    async with SessionLocal() as session:
+        valves = ValveRepo(session)
+        valve = await valves.get()
+        used = await valves.count_reeling()
+        await session.commit()
+        return _valve_json(valve, used)
+
+
+@app.route("/api/steam-valve", methods=["PUT"])
+async def update_steam_valve():
+    denied = require_admin()
+    if denied:
+        return denied
+    body = await request.get_json(force=True) or {}
+    enabled = body.get("enabled")
+    raw_max = body.get("maxReeling")
+    if not isinstance(enabled, bool):
+        return jsonify({"detail": "必须明确是否启用"}), 400
+    # 上限必须是正整数：拒绝布尔、浮点串、零、负数。
+    if isinstance(raw_max, bool) or not isinstance(raw_max, int) or raw_max <= 0:
+        return jsonify({"detail": "同时缫丝口数上限必须是正整数"}), 400
+    async with SessionLocal() as session:
+        valves = ValveRepo(session)
+        valve = await valves.get()
+        await valves.save(valve, enabled, raw_max)
+        used = await valves.count_reeling()
+        return _valve_json(valve, used)

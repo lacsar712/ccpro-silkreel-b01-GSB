@@ -4,6 +4,6 @@ import preact from "@preact/preset-vite";
 export default defineConfig({
   plugins: [preact()],
   server: {
-    proxy: { "/api": "http://127.0.0.1:8970" },
+    proxy: { "/api": "http://127.0.0.1:8980" },
   },
 });

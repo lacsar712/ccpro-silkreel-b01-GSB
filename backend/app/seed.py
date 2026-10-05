@@ -3,7 +3,7 @@ from datetime import timedelta
 from sqlalchemy import select
 
 from app.db import SessionLocal
-from app.models import Basin, BathReading, Filature, User, utcnow
+from app.models import Basin, BathReading, Filature, SteamValve, User, utcnow
 from app.security import hash_password
 
 
@@ -27,6 +27,13 @@ async def seed_demo() -> None:
             worker.role = "worker"
 
         mill = (await session.execute(select(Filature))).scalars().first()
+
+        existing_valve = await session.execute(
+            select(SteamValve).where(SteamValve.id == 1)
+        )
+        if existing_valve.scalar_one_or_none() is None:
+            session.add(SteamValve(id=1, enabled=True, max_reeling=3))
+
         if mill:
             await session.commit()
             return
